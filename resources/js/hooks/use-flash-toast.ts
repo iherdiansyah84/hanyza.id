@@ -8,12 +8,27 @@ export function useFlashToast(): void {
         return router.on('flash', (event) => {
             const flash = (event as CustomEvent).detail?.flash;
             const data = flash?.toast as FlashToast | undefined;
+            const notification = flash?.notification_sent as any;
 
-            if (!data) {
-                return;
+            if (data) {
+                toast[data.type](data.message);
             }
 
-            toast[data.type](data.message);
+            if (notification) {
+                setTimeout(() => {
+                    toast.info(`📧 Email Sent: ${notification.email_subject}`, {
+                        description: 'Simulated mail sent successfully.',
+                        duration: 6000,
+                    });
+                }, 400);
+
+                setTimeout(() => {
+                    toast.success(`💬 WhatsApp Sent:`, {
+                        description: notification.wa_message,
+                        duration: 8000,
+                    });
+                }, 800);
+            }
         });
     }, []);
 }

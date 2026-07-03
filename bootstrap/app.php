@@ -23,6 +23,12 @@ return Application::configure(basePath: dirname(__DIR__))
             SetLocale::class,
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
+            \App\Http\Middleware\CheckUserStatus::class,
+        ]);
+
+        $middleware->alias([
+            'seller' => \App\Http\Middleware\SellerMiddleware::class,
+            'master' => \App\Http\Middleware\MasterMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

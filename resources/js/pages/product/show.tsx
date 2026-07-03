@@ -1,8 +1,9 @@
 'use no memo';
 import { Head, Link, usePage, router } from '@inertiajs/react';
 import { ShoppingBag, User, ArrowRight, Menu, X, Heart, Star, ChevronDown, ChevronUp, Truck, ShieldCheck, RefreshCw, CheckCircle } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { dashboard, login } from '@/routes';
+import { CallCenterDialog } from '@/components/call-center-dialog';
 
 interface PageProps {
     slug: string;
@@ -129,20 +130,64 @@ const productData = {
     }
 };
 
-export default function Show() {
-    const { slug, locale = 'en', auth } = usePage<PageProps>().props;
+export default function Show({ product, relatedProducts = [] }: { product: any; relatedProducts?: any[] }) {
+    const { locale = 'en', auth } = usePage<any>().props;
+    const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsProfileDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
     
-    // Resolve dynamic product details based on slug
-    const product = productData[slug as keyof typeof productData] || productData['earthy-ceramic-vase'];
-    const productTitle = locale === 'id' ? product.title.id : product.title.en;
+    const productTitle = locale === 'id' ? product.name_id : product.name_en;
+
+    const colors = product.colors && product.colors.length > 0 
+        ? product.colors.map((c: any) => ({
+            name: c.name_en || c.name || '',
+            value: c.code || '',
+            label: {
+                en: c.name_en || c.name || '',
+                id: c.name_id || c.name || ''
+            }
+        }))
+        : [];
+
+    const sizes = product.sizes && product.sizes.length > 0
+        ? product.sizes
+        : [];
 
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [cartCount, setCartCount] = useState(2); // Matches mockup having '2' in cart badge
+    const cartCount = auth?.cartCount ?? 0;
     const [quantity, setQuantity] = useState(1);
-    const [selectedColor, setSelectedColor] = useState('Earthy Brown');
-    const [selectedSize, setSelectedSize] = useState('Medium');
+    const [selectedColor, setSelectedColor] = useState(
+        colors.length > 0 ? colors[0].name : ''
+    );
+    const [selectedSize, setSelectedSize] = useState(
+        sizes.length > 0 ? sizes[0] : ''
+    );
     const [liked, setLiked] = useState(false);
     const [addedToCart, setAddedToCart] = useState(false);
+    const [isSupportOpen, setIsSupportOpen] = useState(false);
+
+    // Sync selected color and size when product changes
+    useEffect(() => {
+        if (colors.length > 0) {
+            setSelectedColor(colors[0].name);
+        } else {
+            setSelectedColor('');
+        }
+        if (sizes.length > 0) {
+            setSelectedSize(sizes[0]);
+        } else {
+            setSelectedSize('');
+        }
+    }, [product]);
 
     // Collapsible states for accordions
     const [detailOpen, setDetailOpen] = useState(true);
@@ -150,12 +195,30 @@ export default function Show() {
     const [shippingOpen, setShippingOpen] = useState(false);
 
     // Main image state
-    const [mainImage, setMainImage] = useState(product.image);
+    const [mainImage, setMainImage] = useState(product.image || '/images/logo.png');
 
-    // Update main image state when slug changes
+    // Update main image state when product changes
     useEffect(() => {
-        setMainImage(product.image);
-    }, [slug]);
+        setMainImage(product.image || '/images/logo.png');
+    }, [product]);
+
+    const formatPrice = (value: number | string) => {
+        const num = typeof value === 'number' ? value : parseFloat(value);
+        if (isNaN(num)) return value;
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(num);
+    };
+
+    const thumbnails = [
+        product.image || '/images/logo.png',
+        "/images/organic_cotton_sleepsuit.png",
+        "/images/classic_linen_shirt.png",
+        "/images/premium_bath_towel_set.png"
+    ];
 
     const translations = {
         en: {
@@ -240,73 +303,9 @@ export default function Show() {
 
     const t = translations[locale as 'en' | 'id'] || translations.en;
 
-    const colors = [
-        { name: 'Earthy Brown', value: '#A66E53', label: { en: 'Earthy Brown', id: 'Cokelat Tanah' } },
-        { name: 'Beige', value: '#D9C8B2', label: { en: 'Beige', id: 'Krem' } },
-        { name: 'Slate Grey', value: '#465662', label: { en: 'Slate Grey', id: 'Abu-abu' } }
-    ];
-
-    const sizes = ['Small', 'Medium', 'Large'];
-
-    const relatedProducts = [
-        {
-            id: 1,
-            slug: "ribbed-ceramic-vase",
-            title: {
-                en: "Ribbed Ceramic Vase",
-                id: "Vas Keramik Ribbed"
-            },
-            desc: {
-                en: "Modern minimalist collection",
-                id: "Koleksi minimalis modern"
-            },
-            price: "Rp 195.000",
-            image: "/images/ribbed_ceramic_vase.png"
-        },
-        {
-            id: 2,
-            slug: "sculptural-knot-decor",
-            title: {
-                en: "Sculptural Knot Decor",
-                id: "Dekorasi Simpul Skulptural"
-            },
-            desc: {
-                en: "Abstract decor accent",
-                id: "Aksen dekorasi abstrak"
-            },
-            price: "Rp 320.000",
-            image: "/images/sculptural_knot.png"
-        },
-        {
-            id: 3,
-            slug: "organic-terracotta-bowl",
-            title: {
-                en: "Organic Terracotta Bowl",
-                id: "Mangkuk Terracotta Organik"
-            },
-            desc: {
-                en: "Versatile decorative bowl",
-                id: "Mangkuk hias serbaguna"
-            },
-            price: "Rp 145.000",
-            image: "/images/terracotta_bowl.png",
-            tag: "NEW"
-        },
-        {
-            id: 4,
-            slug: "dried-pampas-grass-set",
-            title: {
-                en: "Dried Pampas Grass (Set)",
-                id: "Set Rumput Pampas Kering"
-            },
-            desc: {
-                en: "Natural vase complement",
-                id: "Pelengkap vas natural"
-            },
-            price: "Rp 85.000",
-            image: "/images/pampas_grass.png"
-        }
-    ];
+    const handleRecommendedClick = (p: any) => {
+        router.visit(`/product/${p.slug}`);
+    };
 
     const switchLocale = (newLocale: 'en' | 'id') => {
         if (newLocale === locale) return;
@@ -316,16 +315,49 @@ export default function Show() {
     };
 
     const handleAddToCart = () => {
-        setCartCount(prev => prev + quantity);
-        setAddedToCart(true);
-        setTimeout(() => setAddedToCart(false), 2000);
+        if (!auth?.user) {
+            router.visit('/login');
+            return;
+        }
+        
+        router.post('/cart', {
+            product_id: product.id,
+            quantity: quantity,
+            color: selectedColor,
+            size: selectedSize
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setAddedToCart(true);
+                setTimeout(() => setAddedToCart(false), 2000);
+            }
+        });
+    };
+
+    const handleBuyNow = () => {
+        if (!auth?.user) {
+            router.visit('/login');
+            return;
+        }
+
+        router.post('/cart', {
+            product_id: product.id,
+            quantity: quantity,
+            color: selectedColor,
+            size: selectedSize
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                router.visit('/cart');
+            }
+        });
     };
 
     return (
         <div className="min-h-screen bg-[#FAF7EE] font-sans antialiased text-[#2E2C28]">
             <Head>
                 <title>{`${productTitle} | Hanyza.id`}</title>
-                <meta name="description" content={locale === 'id' ? product.desc.id : product.desc.en} />
+                <meta name="description" content={locale === 'id' ? product.description_id : product.description_en} />
             </Head>
 
             {/* STICKY GLASSMORPHIC HEADER */}
@@ -337,7 +369,7 @@ export default function Show() {
                     </Link>
 
                     {/* Desktop Navigation */}
-                    <nav className="hidden md:flex items-center space-x-8 text-sm font-medium">
+                    <nav className="hidden lg:flex items-center space-x-8 text-sm font-medium">
                         <Link href="/" className="text-stone-600 hover:text-[#E06D53] transition-colors">
                             Shop
                         </Link>
@@ -350,10 +382,16 @@ export default function Show() {
                         <Link href="/" className="text-stone-600 hover:text-[#E06D53] transition-colors">
                             Sale
                         </Link>
+                        <button
+                            onClick={() => setIsSupportOpen(true)}
+                            className="text-stone-600 hover:text-[#E06D53] transition-colors cursor-pointer"
+                        >
+                            Call Center
+                        </button>
                     </nav>
 
-                    {/* Header Controls */}
-                    <div className="hidden md:flex items-center space-x-6">
+                     {/* Header Controls */}
+                    <div className="hidden lg:flex items-center space-x-6">
                         {/* Elegant Language Pill Toggle */}
                         <div className="flex items-center rounded-full border border-stone-200/80 bg-stone-100/50 p-0.5">
                             <button
@@ -379,20 +417,63 @@ export default function Show() {
                         </div>
 
                         {/* Cart */}
-                        <button className="relative p-2 text-stone-700 hover:text-[#E06D53] transition-colors">
+                        <Link href="/cart" className="relative p-2 text-stone-700 hover:text-[#E06D53] transition-colors">
                             <ShoppingBag className="h-5 w-5 stroke-[1.8]" />
                             {cartCount > 0 && (
                                 <span className="absolute -top-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-[#E06D53] text-[10px] font-bold text-white shadow-sm animate-scaleIn">
                                     {cartCount}
                                 </span>
                             )}
-                        </button>
+                        </Link>
 
                         {/* User */}
-                        {auth.user ? (
-                            <Link href={dashboard.url()} className="p-2 text-stone-700 hover:text-[#E06D53] transition-colors">
-                                <User className="h-5 w-5 stroke-[1.8]" />
-                            </Link>
+                        {auth?.user ? (
+                            <div className="relative" ref={dropdownRef}>
+                                <button
+                                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                                    className="flex items-center space-x-1 p-2 text-stone-700 hover:text-[#E06D53] transition-colors cursor-pointer focus:outline-hidden"
+                                >
+                                    <User className="h-5 w-5 stroke-[1.8]" />
+                                    {auth?.user?.name && (
+                                        <span className="hidden lg:inline text-xs font-semibold text-stone-600 truncate max-w-[80px]">
+                                            {auth?.user?.name}
+                                        </span>
+                                    )}
+                                </button>
+                                
+                                {isProfileDropdownOpen && (
+                                    <div className="absolute right-0 mt-2 w-48 rounded-xl border border-stone-200/80 bg-white p-2.5 shadow-lg ring-1 ring-black/5 z-50">
+                                        <Link
+                                            href={auth?.user?.role !== 'buyer' ? '/dashboard' : '/settings/profile'}
+                                            onClick={() => setIsProfileDropdownOpen(false)}
+                                            className="flex w-full items-center px-3.5 py-2.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 hover:text-[#E06D53] rounded-lg transition-colors cursor-pointer"
+                                        >
+                                            Akun Saya
+                                        </Link>
+                                        
+                                        <Link
+                                            href="/orders"
+                                            onClick={() => setIsProfileDropdownOpen(false)}
+                                            className="flex w-full items-center px-3.5 py-2.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 hover:text-[#E06D53] rounded-lg transition-colors cursor-pointer"
+                                        >
+                                            Pesanan Saya
+                                        </Link>
+                                        
+                                        <hr className="border-stone-100 my-1.5" />
+                                        
+                                        <Link
+                                            href="/logout"
+                                            method="post"
+                                            as="button"
+                                            type="button"
+                                            onClick={() => setIsProfileDropdownOpen(false)}
+                                            className="flex w-full items-center px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-left font-sans"
+                                        >
+                                            Log Out
+                                        </Link>
+                                    </div>
+                                )}
+                            </div>
                         ) : (
                             <div className="flex items-center space-x-2">
                                 <Link href={login.url()} className="text-sm font-medium text-stone-600 hover:text-[#E06D53] transition-colors">
@@ -403,15 +484,15 @@ export default function Show() {
                     </div>
 
                     {/* Mobile Controls */}
-                    <div className="flex items-center space-x-4 md:hidden">
-                        <button className="relative p-2 text-stone-700 hover:text-[#E06D53] transition-colors">
+                    <div className="flex items-center space-x-4 lg:hidden">
+                        <Link href="/cart" className="relative p-2 text-stone-700 hover:text-[#E06D53] transition-colors">
                             <ShoppingBag className="h-5 w-5 stroke-[1.8]" />
                             {cartCount > 0 && (
-                                <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#E06D53] text-[9px] font-bold text-white">
+                                <span className="absolute -top-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-[#E06D53] text-[9px] font-bold text-white">
                                     {cartCount}
                                 </span>
                             )}
-                        </button>
+                        </Link>
                         <button
                             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
                             className="p-2 text-stone-700 hover:text-[#E06D53] transition-colors"
@@ -423,12 +504,21 @@ export default function Show() {
 
                 {/* Mobile Menu */}
                 {mobileMenuOpen && (
-                    <div className="md:hidden border-t border-stone-100 bg-[#FFFFFF] px-6 py-6 shadow-lg animate-slideDown">
+                    <div className="lg:hidden border-t border-stone-100 bg-[#FFFFFF] px-6 py-6 shadow-lg animate-slideDown">
                         <nav className="flex flex-col space-y-4 text-base font-medium">
                             <Link href="/" className="text-stone-600 hover:text-[#E06D53] py-1 border-b border-stone-50">Shop</Link>
                             <Link href="/" className="text-stone-600 hover:text-[#E06D53] py-1 border-b border-stone-50">New Arrivals</Link>
                             <Link href="/" className="text-[#E06D53] py-1 border-b border-stone-50">Home Living</Link>
                             <Link href="/" className="text-stone-600 hover:text-[#E06D53] py-1">Sale</Link>
+                            <button
+                                onClick={() => {
+                                    setMobileMenuOpen(false);
+                                    setIsSupportOpen(true);
+                                }}
+                                className="text-left text-stone-600 hover:text-[#E06D53] py-1 cursor-pointer"
+                            >
+                                Call Center
+                            </button>
                         </nav>
                         <div className="mt-6 flex flex-col space-y-4 border-t border-stone-100 pt-6">
                             <div className="flex items-center justify-between">
@@ -477,7 +567,7 @@ export default function Show() {
 
                         {/* Thumbnails list */}
                         <div className="grid grid-cols-4 gap-4">
-                            {product.thumbnails.map((thumb, idx) => (
+                            {thumbnails.map((thumb, idx) => (
                                 <button
                                     key={idx}
                                     onClick={() => setMainImage(thumb)}
@@ -501,7 +591,7 @@ export default function Show() {
                         <div>
                             {/* Tag */}
                             <span className="inline-block rounded-full bg-[#FAF7EE] border border-stone-200 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-stone-700 shadow-sm mb-3">
-                                {locale === 'id' ? product.badge.id : product.badge.en}
+                                {product.category ? product.category.name : (locale === 'id' ? 'Umum' : 'General')}
                             </span>
                             <h1 className="text-3xl font-bold tracking-tight text-stone-950 font-sans">
                                 {productTitle}
@@ -509,7 +599,7 @@ export default function Show() {
 
                             <div className="mt-3 flex items-center space-x-3">
                                 <span className="text-[#E06D53] text-2xl font-bold font-sans">
-                                    {product.price}
+                                    {formatPrice(product.price)}
                                 </span>
                                 <div className="flex items-center text-stone-300">
                                     <div className="flex items-center text-amber-400 mr-1.5">
@@ -527,56 +617,60 @@ export default function Show() {
                         </div>
 
                         <p className="text-sm text-stone-600 leading-relaxed max-w-xl">
-                            {locale === 'id' ? product.desc.id : product.desc.en}
+                            {locale === 'id' ? product.description_id : product.description_en}
                         </p>
 
                         <div className="border-t border-stone-200/60 pt-6 space-y-6">
                             {/* Color Selector */}
-                            <div>
-                                <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
-                                    {t.colorLabel}: <span className="text-stone-800 font-semibold">{selectedColor}</span>
-                                </span>
-                                <div className="mt-3 flex items-center space-x-3">
-                                    {colors.map((color) => (
-                                        <button
-                                            key={color.name}
-                                            onClick={() => setSelectedColor(color.name)}
-                                            style={{ backgroundColor: color.value }}
-                                            className={`h-8 w-8 rounded-full border shadow-sm transition-all duration-200 cursor-pointer ${
-                                                selectedColor === color.name ? 'ring-2 ring-offset-2 ring-[#E06D53] border-white' : 'border-stone-200/60'
-                                            }`}
-                                            title={locale === 'id' ? color.label.id : color.label.en}
-                                        />
-                                    ))}
+                            {colors.length > 0 && (
+                                <div>
+                                    <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                                        {t.colorLabel}: <span className="text-stone-800 font-semibold">{selectedColor}</span>
+                                    </span>
+                                    <div className="mt-3 flex items-center space-x-3">
+                                        {colors.map((color: any) => (
+                                            <button
+                                                key={color.name}
+                                                onClick={() => setSelectedColor(color.name)}
+                                                style={{ backgroundColor: color.value }}
+                                                className={`h-8 w-8 rounded-full border shadow-sm transition-all duration-200 cursor-pointer ${
+                                                    selectedColor === color.name ? 'ring-2 ring-offset-2 ring-[#E06D53] border-white' : 'border-stone-200/60'
+                                                }`}
+                                                title={locale === 'id' ? color.label.id : color.label.en}
+                                            />
+                                        ))}
+                                    </div>
                                 </div>
-                            </div>
+                            )}
 
                             {/* Size Selector */}
-                            <div>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
-                                        {t.sizeLabel}: <span className="text-stone-800 font-semibold">{selectedSize}</span>
-                                    </span>
-                                    <a href="#size-guide" className="text-xs font-semibold text-[#E06D53] hover:underline underline-offset-2">
-                                        {t.sizeGuide}
-                                    </a>
+                            {sizes.length > 0 && (
+                                <div>
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-stone-500">
+                                            {t.sizeLabel}: <span className="text-stone-800 font-semibold">{selectedSize}</span>
+                                        </span>
+                                        <a href="#size-guide" className="text-xs font-semibold text-[#E06D53] hover:underline underline-offset-2">
+                                            {t.sizeGuide}
+                                        </a>
+                                    </div>
+                                    <div className="mt-3 flex items-center space-x-3">
+                                        {sizes.map((size: string) => (
+                                            <button
+                                                key={size}
+                                                onClick={() => setSelectedSize(size)}
+                                                className={`rounded-xl border px-5 py-2.5 text-xs font-semibold shadow-sm transition-all duration-200 cursor-pointer ${
+                                                    selectedSize === size
+                                                        ? 'border-[#E06D53] bg-white text-[#E06D53] ring-1 ring-[#E06D53]'
+                                                        : 'border-stone-200/50 bg-white text-stone-700 hover:border-stone-400'
+                                                }`}
+                                            >
+                                                {size}
+                                            </button>
+                                        ))}
+                                    </div>
                                 </div>
-                                <div className="mt-3 flex items-center space-x-3">
-                                    {sizes.map((size) => (
-                                        <button
-                                            key={size}
-                                            onClick={() => setSelectedSize(size)}
-                                            className={`rounded-xl border px-5 py-2.5 text-xs font-semibold shadow-sm transition-all duration-200 cursor-pointer ${
-                                                selectedSize === size
-                                                    ? 'border-[#E06D53] bg-white text-[#E06D53] ring-1 ring-[#E06D53]'
-                                                    : 'border-stone-200/50 bg-white text-stone-700 hover:border-stone-400'
-                                            }`}
-                                        >
-                                            {size}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
+                            )}
 
                             {/* Quantity */}
                             <div>
@@ -624,7 +718,10 @@ export default function Show() {
                                         </>
                                     )}
                                 </button>
-                                <button className="flex-1 rounded-xl border border-[#E06D53] bg-white py-3 text-sm font-bold text-[#E06D53] shadow-sm hover:bg-stone-50/50 hover:shadow transition-all duration-200 cursor-pointer">
+                                 <button 
+                                    onClick={handleBuyNow}
+                                    className="flex-1 rounded-xl border border-[#E06D53] bg-white py-3 text-sm font-bold text-[#E06D53] shadow-sm hover:bg-stone-50/50 hover:shadow transition-all duration-200 cursor-pointer"
+                                >
                                     {t.btnBuyNow}
                                 </button>
                             </div>
@@ -643,9 +740,9 @@ export default function Show() {
                                 </button>
                                 {detailOpen && (
                                     <div className="mt-3 text-xs text-stone-600 space-y-3 leading-relaxed animate-fadeIn">
-                                        <p>{locale === 'id' ? product.desc.id : product.desc.en}</p>
+                                        <p>{locale === 'id' ? product.description_id : product.description_en}</p>
                                         <ul className="list-disc pl-4 space-y-1 font-medium">
-                                            {(locale === 'id' ? product.specs.id : product.specs.en).map((bullet, idx) => (
+                                            {(locale === 'id' ? (product.specs?.id || []) : (product.specs?.en || [])).map((bullet: any, idx: number) => (
                                                 <li key={idx}>
                                                     <strong>{bullet.name}:</strong> {bullet.val}
                                                 </li>
@@ -726,32 +823,40 @@ export default function Show() {
 
                     {/* Cards Grid */}
                     <div className="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-4 xl:gap-x-8">
-                        {relatedProducts.map((product) => (
+                        {relatedProducts.map((p) => (
                             <div
-                                key={product.id}
-                                className="group relative flex flex-col overflow-hidden rounded-2xl border border-stone-200/40 bg-white shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300"
+                                key={p.id}
+                                onClick={() => handleRecommendedClick(p)}
+                                className="group relative flex flex-col overflow-hidden rounded-2xl border border-stone-200/40 bg-white shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300 cursor-pointer"
                             >
                                 <div className="relative aspect-square w-full overflow-hidden bg-stone-100">
-                                    <img
-                                        src={product.image}
-                                        alt={locale === 'id' ? product.title.id : product.title.en}
-                                        className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
-                                    />
-                                    {product.tag && (
-                                        <span className="absolute top-3 left-3 rounded-full bg-[#E06D53] px-3 py-1 text-[9px] font-bold tracking-wider text-white shadow-sm">
-                                            {product.tag}
+                                    {p.image ? (
+                                        <img
+                                            src={p.image.startsWith('/images') ? p.image : `/storage/${p.image}`}
+                                            alt={locale === 'id' ? p.name_id : p.name_en}
+                                            className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
+                                            loading="lazy"
+                                        />
+                                    ) : (
+                                        <div className="h-full w-full bg-stone-150 flex items-center justify-center text-xs text-stone-400">
+                                            No image
+                                        </div>
+                                    )}
+                                    {p.stock <= 0 && (
+                                        <span className="absolute top-3 left-3 rounded-full bg-red-600 px-3 py-1 text-[9px] font-bold tracking-wider text-white shadow-sm">
+                                            OUT OF STOCK
                                         </span>
                                     )}
                                 </div>
                                 <div className="flex flex-1 flex-col p-5">
-                                    <h3 className="text-sm font-semibold text-stone-800 group-hover:text-[#E06D53] transition-colors line-clamp-1">
-                                        {locale === 'id' ? product.title.id : product.title.en}
+                                    <h3 className="text-sm font-semibold text-stone-800 group-hover:text-[#E06D53] transition-colors line-clamp-1 font-sans">
+                                        {locale === 'id' ? p.name_id : p.name_en}
                                     </h3>
-                                    <p className="text-xs text-stone-400 mt-1 font-medium leading-relaxed">
-                                        {locale === 'id' ? product.desc.id : product.desc.en}
+                                    <p className="text-xs text-stone-400 mt-1 font-medium leading-relaxed line-clamp-2">
+                                        {locale === 'id' ? p.description_id : p.description_en}
                                     </p>
-                                    <p className="mt-2 text-base font-bold text-stone-900 font-sans">
-                                        {product.price}
+                                    <p className="mt-2 text-base font-bold text-[#E06D53] font-sans">
+                                        {formatPrice(p.price)}
                                     </p>
                                 </div>
                             </div>
@@ -802,6 +907,7 @@ export default function Show() {
                     </div>
                 </div>
             </footer>
+            <CallCenterDialog open={isSupportOpen} onOpenChange={setIsSupportOpen} />
         </div>
     );
 }

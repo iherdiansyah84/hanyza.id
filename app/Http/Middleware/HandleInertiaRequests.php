@@ -40,9 +40,14 @@ class HandleInertiaRequests extends Middleware
             'name' => config('app.name'),
             'auth' => [
                 'user' => $request->user(),
+                'cartCount' => $request->user() ? $request->user()->cartItems()->count() : 0,
             ],
             'sidebarOpen' => ! $request->hasCookie('sidebar_state') || $request->cookie('sidebar_state') === 'true',
             'locale' => app()->getLocale(),
+            'flash' => [
+                'toast' => $request->session()->get('toast'),
+                'notification_sent' => $request->session()->get('notification_sent'),
+            ],
         ];
     }
 }

@@ -18,10 +18,19 @@ class DashboardTest extends TestCase
 
     public function test_authenticated_users_can_visit_the_dashboard()
     {
-        $user = User::factory()->create();
+        $user = User::factory()->create(['role' => 'master']);
         $this->actingAs($user);
 
         $response = $this->get(route('dashboard'));
         $response->assertOk();
+    }
+
+    public function test_buyer_users_cannot_visit_the_dashboard()
+    {
+        $user = User::factory()->create(['role' => 'buyer']);
+        $this->actingAs($user);
+
+        $response = $this->get(route('dashboard'));
+        $response->assertStatus(403);
     }
 }

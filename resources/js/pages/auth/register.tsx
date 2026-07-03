@@ -1,4 +1,5 @@
 import { Form, Head } from '@inertiajs/react';
+import { useState } from 'react';
 import InputError from '@/components/input-error';
 import PasswordInput from '@/components/password-input';
 import TextLink from '@/components/text-link';
@@ -94,10 +95,12 @@ export default function Register({ passwordRules }: Props) {
                                 />
                             </div>
 
+                            <input type="hidden" name="role" value="master" />
+
                             <Button
                                 type="submit"
                                 className="mt-2 w-full rounded-xl bg-[#E06D53] py-6 text-base font-bold text-white shadow-md transition-all duration-300 hover:bg-[#C85B43] hover:shadow-lg"
-                                tabIndex={5}
+                                tabIndex={6}
                                 data-test="register-user-button"
                             >
                                 {processing && <Spinner />}
@@ -107,7 +110,7 @@ export default function Register({ passwordRules }: Props) {
 
                         <div className="text-center text-sm font-medium text-stone-600">
                             Already have an account?{' '}
-                            <TextLink href={login()} tabIndex={6} className="font-bold text-[#E06D53] hover:text-[#C85B43] hover:underline">
+                            <TextLink href={login()} tabIndex={7} className="font-bold text-[#E06D53] hover:text-[#C85B43] hover:underline">
                                 Log in
                             </TextLink>
                         </div>

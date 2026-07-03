@@ -32,6 +32,7 @@ export default function Login({ status, canResetPassword }: Props) {
                 {({ processing, errors }) => (
                     <>
                         <div className="grid gap-6">
+
                             <div className="grid gap-2">
                                 <Label htmlFor="email">Email address</Label>
                                 <Input

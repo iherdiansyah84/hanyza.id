@@ -1,8 +1,10 @@
 'use no memo';
 import { Head, Link, usePage, router } from '@inertiajs/react';
 import { dashboard, login } from '@/routes';
-import { ShoppingBag, User, ArrowRight, Menu, X, ChevronDown, CheckCircle } from 'lucide-react';
-import { useState } from 'react';
+import { ShoppingBag, User, ArrowRight, Menu, X, ChevronDown, CheckCircle, Search, Gift, Coins } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { toast } from 'sonner';
+import { CallCenterDialog } from '@/components/call-center-dialog';
 
 interface PageProps {
     locale?: string;
@@ -12,11 +14,81 @@ interface PageProps {
     [key: string]: any;
 }
 
-export default function Welcome() {
-    const { locale = 'en', auth } = usePage<PageProps>().props;
+export default function Welcome({ products = [], vouchers = [] }: { products?: any[]; vouchers?: any[] }) {
+    const { locale = 'en', auth } = usePage<any>().props;
+    const { url } = usePage();
     const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-    const [cartCount, setCartCount] = useState(0);
+    const cartCount = auth?.cartCount ?? 0;
     const [addedToCartId, setAddedToCartId] = useState<number | null>(null);
+    const [isProfileDropdownOpen, setIsProfileDropdownOpen] = useState(false);
+    const dropdownRef = useRef<HTMLDivElement>(null);
+    const [isSupportOpen, setIsSupportOpen] = useState(false);
+
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+                setIsProfileDropdownOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, []);
+
+    const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState<'all' | 'fashion' | 'home-living' | 'lifestyle' | 'discount'>('all');
+    const [selectedSubcategory, setSelectedSubcategory] = useState<string | null>(null);
+    const [selectedSubSubcategory, setSelectedSubSubcategory] = useState<string | null>(null);
+
+    // Sync categories and search queries from the URL parameters
+    useEffect(() => {
+        const queryStr = url.includes('?') ? url.split('?')[1] : '';
+        const params = new URLSearchParams(queryStr);
+        const categoryParam = params.get('category');
+        const searchParam = params.get('search');
+
+        if (categoryParam) {
+            if (['all', 'fashion', 'home-living', 'lifestyle', 'discount'].includes(categoryParam)) {
+                setSelectedCategory(categoryParam as any);
+            }
+        } else {
+            setSelectedCategory('all');
+        }
+
+        setSelectedSubcategory(null);
+        setSelectedSubSubcategory(null);
+
+        if (searchParam !== null) {
+            setSearchQuery(searchParam);
+        } else {
+            setSearchQuery('');
+        }
+    }, [url]);
+
+    const [showRecommendation, setShowRecommendation] = useState(false);
+    const [recommendedProduct, setRecommendedProduct] = useState<any>(null);
+
+    // Set 5-seconds recommendation
+    useEffect(() => {
+        const timer = setTimeout(() => {
+            let choice = products[0]; // default: organic cotton sleepsuit
+            if (searchQuery) {
+                const matched = products.find(p => 
+                    p.name_en.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                    p.name_id.toLowerCase().includes(searchQuery.toLowerCase())
+                );
+                if (matched) choice = matched;
+            } else if (products.length > 2) {
+                choice = products[2]; // Earthy Ceramic Vase
+            }
+
+            if (choice) {
+                setRecommendedProduct(choice);
+                setShowRecommendation(true);
+            }
+        }, 5000);
+
+        return () => clearTimeout(timer);
+    }, [searchQuery, products]);
 
     // Multi-Language Dictionary
     const translations = {
@@ -28,6 +100,7 @@ export default function Welcome() {
             nav: {
                 fashion: "Fashion",
                 homeLiving: "Home Living",
+                lifestyle: "Lifestyle",
                 newArrivals: "New Arrivals",
                 sale: "Sale",
                 login: "Log in",
@@ -68,6 +141,7 @@ export default function Welcome() {
             nav: {
                 fashion: "Fashion",
                 homeLiving: "Home Living",
+                lifestyle: "Gaya Hidup",
                 newArrivals: "Produk Terbaru",
                 sale: "Diskon",
                 login: "Masuk",
@@ -104,52 +178,16 @@ export default function Welcome() {
 
     const t = translations[locale as 'en' | 'id'] || translations.en;
 
-    const products = [
-        {
-            id: 1,
-            slug: "organic-cotton-sleepsuit",
-            title: {
-                en: "Organic Cotton Sleepsuit",
-                id: "Baju Tidur Katun Organik"
-            },
-            tag: t.newArrivals.badges.newBorn,
-            price: "Rp 149.000",
-            image: "/images/organic_cotton_sleepsuit.png"
-        },
-        {
-            id: 2,
-            slug: "earthy-ceramic-vase",
-            title: {
-                en: "Earthy Ceramic Vase",
-                id: "Vas Keramik Earthy"
-            },
-            tag: t.newArrivals.badges.homeDecor,
-            price: "Rp 285.000",
-            image: "/images/earthy_ceramic_vase.png"
-        },
-        {
-            id: 3,
-            slug: "classic-linen-shirt",
-            title: {
-                en: "Classic Linen Shirt",
-                id: "Kemeja Linen Klasik"
-            },
-            tag: null,
-            price: "Rp 320.000",
-            image: "/images/classic_linen_shirt.png"
-        },
-        {
-            id: 4,
-            slug: "premium-bath-towel-set",
-            title: {
-                en: "Premium Bath Towel Set",
-                id: "Set Handuk Mandi Premium"
-            },
-            tag: null,
-            price: "Rp 195.000",
-            image: "/images/premium_bath_towel_set.png"
-        }
-    ];
+    const formatPrice = (value: number | string) => {
+        const num = typeof value === 'number' ? value : parseFloat(value);
+        if (isNaN(num)) return value;
+        return new Intl.NumberFormat('id-ID', {
+            style: 'currency',
+            currency: 'IDR',
+            minimumFractionDigits: 0,
+            maximumFractionDigits: 0
+        }).format(num);
+    };
 
     const switchLocale = (newLocale: 'en' | 'id') => {
         if (newLocale === locale) return;
@@ -158,13 +196,88 @@ export default function Welcome() {
         });
     };
 
-    const handleAddToCart = (id: number) => {
-        setCartCount(prev => prev + 1);
-        setAddedToCartId(id);
-        setTimeout(() => {
-            setAddedToCartId(null);
-        }, 1500);
+    const handleAddToCart = (id: number, slug: string) => {
+        router.visit(`/product/${slug}`);
     };
+
+    const scrollToShop = (e: React.MouseEvent) => {
+        e.preventDefault();
+        document.getElementById('new-arrivals')?.scrollIntoView({ behavior: 'smooth' });
+    };
+
+    const handleAddRecommendedToCart = (e: React.MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!auth?.user) {
+            router.visit('/login');
+            return;
+        }
+
+        const color = recommendedProduct.colors && recommendedProduct.colors.length > 0 
+            ? (locale === 'id' ? recommendedProduct.colors[0].name_id : recommendedProduct.colors[0].name_en) 
+            : '';
+        const size = recommendedProduct.sizes && recommendedProduct.sizes.length > 0 
+            ? recommendedProduct.sizes[0] 
+            : '';
+
+        router.post('/cart', {
+            product_id: recommendedProduct.id,
+            quantity: 1,
+            color: color,
+            size: size
+        }, {
+            preserveScroll: true,
+            onSuccess: () => {
+                setShowRecommendation(false);
+                toast.success(locale === 'id' ? 'Barang rekomendasi berhasil dimasukkan ke keranjang!' : 'Added recommendation to cart!');
+            }
+        });
+    };
+
+    // Filter products dynamically
+    const filteredProducts = products.filter(product => {
+        if (searchQuery) {
+            const query = searchQuery.toLowerCase();
+            const matchesName = 
+                product.name_en.toLowerCase().includes(query) ||
+                product.name_id.toLowerCase().includes(query);
+            if (!matchesName) return false;
+        }
+
+        if (selectedCategory !== 'all') {
+            const categoryName = product.category?.name?.toLowerCase() || '';
+            const parentName = product.category?.parent?.name?.toLowerCase() || '';
+            const grandparentName = product.category?.parent?.parent?.name?.toLowerCase() || '';
+            
+            if (selectedCategory === 'fashion') {
+                const isFashion = categoryName === 'fashion' || parentName === 'fashion' || grandparentName === 'fashion';
+                if (!isFashion) return false;
+            } else if (selectedCategory === 'home-living') {
+                const isHomeLiving = 
+                    categoryName === 'home living' || parentName === 'home-living' || grandparentName === 'home-living' ||
+                    categoryName === 'home-living' || parentName === 'home living' || grandparentName === 'home living';
+                if (!isHomeLiving) return false;
+            } else if (selectedCategory === 'lifestyle') {
+                const isLifestyle = categoryName === 'lifestyle' || parentName === 'lifestyle' || grandparentName === 'lifestyle';
+                if (!isLifestyle) return false;
+            }
+        }
+
+        if (selectedSubcategory) {
+            const subName = product.category?.name?.toLowerCase() || '';
+            const parentSubName = product.category?.parent?.name?.toLowerCase() || '';
+            const isMatch = 
+                subName === selectedSubcategory.toLowerCase() || 
+                parentSubName === selectedSubcategory.toLowerCase();
+            if (!isMatch) return false;
+
+            if (selectedSubSubcategory) {
+                if (subName !== selectedSubSubcategory.toLowerCase()) return false;
+            }
+        }
+
+        return true;
+    });
 
     return (
         <div className="min-h-screen bg-[#FAF7EE] font-sans antialiased text-[#2E2C28]">
@@ -182,23 +295,104 @@ export default function Welcome() {
                     </Link>
 
                     {/* Desktop Navigation */}
-                    <nav className="hidden md:flex items-center space-x-8 text-sm font-medium">
-                        <a href="#fashion" className="text-stone-600 hover:text-[#E06D53] transition-colors">
+                    <nav className="hidden lg:flex items-center space-x-8 text-sm font-bold">
+                        <button
+                            onClick={(e) => {
+                                setSelectedCategory('fashion');
+                                setSelectedSubcategory(null);
+                                setSelectedSubSubcategory(null);
+                                scrollToShop(e);
+                            }}
+                            className={`cursor-pointer transition-colors relative py-1 ${
+                                selectedCategory === 'fashion'
+                                    ? 'text-[#E06D53] after:absolute after:bottom-[-4px] after:left-0 after:h-[2px] after:w-full after:bg-[#E06D53] after:rounded-full'
+                                    : 'text-stone-600 hover:text-[#E06D53]'
+                            }`}
+                        >
                             {t.nav.fashion}
-                        </a>
-                        <a href="#home-living" className="text-stone-600 hover:text-[#E06D53] transition-colors">
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                setSelectedCategory('home-living');
+                                setSelectedSubcategory(null);
+                                setSelectedSubSubcategory(null);
+                                scrollToShop(e);
+                            }}
+                            className={`cursor-pointer transition-colors relative py-1 ${
+                                selectedCategory === 'home-living'
+                                    ? 'text-[#E06D53] after:absolute after:bottom-[-4px] after:left-0 after:h-[2px] after:w-full after:bg-[#E06D53] after:rounded-full'
+                                    : 'text-stone-600 hover:text-[#E06D53]'
+                            }`}
+                        >
                             {t.nav.homeLiving}
-                        </a>
-                        <a href="#new-arrivals" className="relative py-1 text-[#E06D53] after:absolute after:bottom-0 after:left-0 after:h-[2px] after:w-full after:bg-[#E06D53] after:rounded-full">
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                setSelectedCategory('lifestyle');
+                                setSelectedSubcategory(null);
+                                setSelectedSubSubcategory(null);
+                                scrollToShop(e);
+                            }}
+                            className={`cursor-pointer transition-colors relative py-1 ${
+                                selectedCategory === 'lifestyle'
+                                    ? 'text-[#E06D53] after:absolute after:bottom-[-4px] after:left-0 after:h-[2px] after:w-full after:bg-[#E06D53] after:rounded-full'
+                                    : 'text-stone-600 hover:text-[#E06D53]'
+                            }`}
+                        >
+                            {t.nav.lifestyle}
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                setSelectedCategory('all');
+                                setSelectedSubcategory(null);
+                                setSelectedSubSubcategory(null);
+                                scrollToShop(e);
+                            }}
+                            className={`cursor-pointer transition-colors relative py-1 ${
+                                selectedCategory === 'all'
+                                    ? 'text-[#E06D53] after:absolute after:bottom-[-4px] after:left-0 after:h-[2px] after:w-full after:bg-[#E06D53] after:rounded-full'
+                                    : 'text-stone-600 hover:text-[#E06D53]'
+                            }`}
+                        >
                             {t.nav.newArrivals}
-                        </a>
-                        <a href="#sale" className="text-stone-600 hover:text-[#E06D53] transition-colors">
+                        </button>
+                        <button
+                            onClick={(e) => {
+                                setSelectedCategory('discount');
+                                setSelectedSubcategory(null);
+                                setSelectedSubSubcategory(null);
+                                scrollToShop(e);
+                            }}
+                            className={`cursor-pointer transition-colors relative py-1 ${
+                                selectedCategory === 'discount'
+                                    ? 'text-[#E06D53] after:absolute after:bottom-[-4px] after:left-0 after:h-[2px] after:w-full after:bg-[#E06D53] after:rounded-full'
+                                    : 'text-stone-600 hover:text-[#E06D53]'
+                            }`}
+                        >
                             {t.nav.sale}
-                        </a>
+                        </button>
+                        <button
+                            onClick={() => setIsSupportOpen(true)}
+                            className="cursor-pointer transition-colors relative py-1 text-stone-600 hover:text-[#E06D53]"
+                        >
+                            Call Center
+                        </button>
                     </nav>
 
-                    {/* Header Controls (Language, Cart, Auth) */}
-                    <div className="hidden md:flex items-center space-x-6">
+                    {/* Desktop Search bar */}
+                    <div className="relative mx-4 hidden lg:block w-48 xl:w-60">
+                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-stone-400" />
+                        <input
+                            type="text"
+                            placeholder={locale === 'id' ? 'Cari barang...' : 'Search catalog...'}
+                            value={searchQuery}
+                            onChange={(e) => setSearchQuery(e.target.value)}
+                            className="w-full pl-9 pr-4 py-1.5 text-xs rounded-full border border-stone-200 bg-stone-50/60 focus:outline-hidden focus:ring-1 focus:ring-[#E06D53] focus:border-[#E06D53] transition-all"
+                        />
+                    </div>
+
+                     {/* Header Controls (Language, Cart, Auth) */}
+                    <div className="hidden lg:flex items-center space-x-6">
                         {/* Elegant Language Pill Toggle */}
                         <div className="flex items-center rounded-full border border-stone-200/80 bg-stone-100/50 p-0.5">
                             <button
@@ -224,23 +418,63 @@ export default function Welcome() {
                         </div>
 
                         {/* Cart Icon with count badge */}
-                        <button className="relative p-2 text-stone-700 hover:text-[#E06D53] transition-colors">
+                        <Link href="/cart" className="relative p-2 text-stone-700 hover:text-[#E06D53] transition-colors">
                             <ShoppingBag className="h-5 w-5 stroke-[1.8]" />
                             {cartCount > 0 && (
                                 <span className="absolute -top-0.5 -right-0.5 flex h-4.5 w-4.5 items-center justify-center rounded-full bg-[#E06D53] text-[10px] font-bold text-white shadow-sm animate-scaleIn">
                                     {cartCount}
                                 </span>
                             )}
-                        </button>
+                        </Link>
 
                         {/* User Account / Auth Links */}
-                        {auth.user ? (
-                            <Link
-                                href={dashboard.url()}
-                                className="flex items-center space-x-1 p-2 text-stone-700 hover:text-[#E06D53] transition-colors"
-                            >
-                                <User className="h-5 w-5 stroke-[1.8]" />
-                            </Link>
+                        {auth?.user ? (
+                            <div className="relative" ref={dropdownRef}>
+                                <button
+                                    onClick={() => setIsProfileDropdownOpen(!isProfileDropdownOpen)}
+                                    className="flex items-center space-x-1 p-2 text-stone-700 hover:text-[#E06D53] transition-colors cursor-pointer focus:outline-hidden"
+                                >
+                                    <User className="h-5 w-5 stroke-[1.8]" />
+                                    {auth?.user?.name && (
+                                        <span className="hidden lg:inline text-xs font-semibold text-stone-600 truncate max-w-[80px]">
+                                            {auth?.user?.name}
+                                        </span>
+                                    )}
+                                </button>
+                                
+                                {isProfileDropdownOpen && (
+                                    <div className="absolute right-0 mt-2 w-48 rounded-xl border border-stone-200/80 bg-white p-2.5 shadow-lg ring-1 ring-black/5 z-50">
+                                        <Link
+                                            href={auth?.user?.role !== 'buyer' ? '/dashboard' : '/settings/profile'}
+                                            onClick={() => setIsProfileDropdownOpen(false)}
+                                            className="flex w-full items-center px-3.5 py-2.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 hover:text-[#E06D53] rounded-lg transition-colors cursor-pointer"
+                                        >
+                                            Akun Saya
+                                        </Link>
+                                        
+                                        <Link
+                                            href="/orders"
+                                            onClick={() => setIsProfileDropdownOpen(false)}
+                                            className="flex w-full items-center px-3.5 py-2.5 text-xs font-semibold text-stone-700 hover:bg-stone-50 hover:text-[#E06D53] rounded-lg transition-colors cursor-pointer"
+                                        >
+                                            Pesanan Saya
+                                        </Link>
+                                        
+                                        <hr className="border-stone-100 my-1.5" />
+                                        
+                                        <Link
+                                            href="/logout"
+                                            method="post"
+                                            as="button"
+                                            type="button"
+                                            onClick={() => setIsProfileDropdownOpen(false)}
+                                            className="flex w-full items-center px-3.5 py-2.5 text-xs font-semibold text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer text-left font-sans"
+                                        >
+                                            Log Out
+                                        </Link>
+                                    </div>
+                                )}
+                            </div>
                         ) : (
                             <div className="flex items-center space-x-2">
                                 <Link
@@ -261,16 +495,16 @@ export default function Welcome() {
                     </div>
 
                     {/* Mobile Menu & Controls */}
-                    <div className="flex items-center space-x-4 md:hidden">
+                    <div className="flex items-center space-x-4 lg:hidden">
                         {/* Cart */}
-                        <button className="relative p-2 text-stone-700 hover:text-[#E06D53] transition-colors">
+                        <Link href="/cart" className="relative p-2 text-stone-700 hover:text-[#E06D53] transition-colors">
                             <ShoppingBag className="h-5 w-5 stroke-[1.8]" />
                             {cartCount > 0 && (
                                 <span className="absolute -top-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#E06D53] text-[9px] font-bold text-white">
                                     {cartCount}
                                 </span>
                             )}
-                        </button>
+                        </Link>
 
                         {/* Hamburger */}
                         <button
@@ -284,36 +518,86 @@ export default function Welcome() {
 
                 {/* MOBILE MENU DROPDOWN */}
                 {mobileMenuOpen && (
-                    <div className="md:hidden border-t border-stone-100 bg-[#FFFFFF] px-6 py-6 shadow-lg animate-slideDown">
-                        <nav className="flex flex-col space-y-4 text-base font-medium">
-                            <a
-                                href="#fashion"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="text-stone-600 hover:text-[#E06D53] py-1 border-b border-stone-50"
+                    <div className="lg:hidden border-t border-stone-100 bg-[#FFFFFF] px-6 py-6 shadow-lg animate-slideDown">
+                        {/* Mobile Search input */}
+                        <div className="relative w-full mb-4">
+                            <Search className="absolute left-3 top-2.5 h-4 w-4 text-stone-400" />
+                            <input
+                                type="text"
+                                placeholder={locale === 'id' ? 'Cari barang...' : 'Search catalog...'}
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-stone-200 bg-stone-50 focus:outline-hidden"
+                            />
+                        </div>
+
+                        <nav className="flex flex-col space-y-3 font-semibold text-sm">
+                            <button
+                                onClick={(e) => {
+                                    setSelectedCategory('fashion');
+                                    setSelectedSubcategory(null);
+                                    setMobileMenuOpen(false);
+                                    scrollToShop(e);
+                                }}
+                                className="text-left text-stone-600 hover:text-[#E06D53] py-1 cursor-pointer"
                             >
                                 {t.nav.fashion}
-                            </a>
-                            <a
-                                href="#home-living"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="text-stone-600 hover:text-[#E06D53] py-1 border-b border-stone-50"
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    setSelectedCategory('home-living');
+                                    setSelectedSubcategory(null);
+                                    setSelectedSubSubcategory(null);
+                                    setMobileMenuOpen(false);
+                                    scrollToShop(e);
+                                }}
+                                className="text-left text-stone-600 hover:text-[#E06D53] py-1 cursor-pointer"
                             >
                                 {t.nav.homeLiving}
-                            </a>
-                            <a
-                                href="#new-arrivals"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="text-[#E06D53] py-1 border-b border-stone-50"
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    setSelectedCategory('lifestyle');
+                                    setSelectedSubcategory(null);
+                                    setSelectedSubSubcategory(null);
+                                    setMobileMenuOpen(false);
+                                    scrollToShop(e);
+                                }}
+                                className="text-left text-stone-600 hover:text-[#E06D53] py-1 cursor-pointer"
+                            >
+                                {t.nav.lifestyle}
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    setSelectedCategory('all');
+                                    setSelectedSubcategory(null);
+                                    setMobileMenuOpen(false);
+                                    scrollToShop(e);
+                                }}
+                                className="text-left text-[#E06D53] py-1 border-b border-stone-50 cursor-pointer"
                             >
                                 {t.nav.newArrivals}
-                            </a>
-                            <a
-                                href="#sale"
-                                onClick={() => setMobileMenuOpen(false)}
-                                className="text-stone-600 hover:text-[#E06D53] py-1"
+                            </button>
+                            <button
+                                onClick={(e) => {
+                                    setSelectedCategory('discount');
+                                    setSelectedSubcategory(null);
+                                    setMobileMenuOpen(false);
+                                    scrollToShop(e);
+                                }}
+                                className="text-left text-stone-600 hover:text-[#E06D53] py-1 cursor-pointer"
                             >
                                 {t.nav.sale}
-                            </a>
+                            </button>
+                            <button
+                                onClick={() => {
+                                    setMobileMenuOpen(false);
+                                    setIsSupportOpen(true);
+                                }}
+                                className="text-left text-stone-600 hover:text-[#E06D53] py-1 cursor-pointer"
+                            >
+                                Call Center
+                            </button>
                         </nav>
 
                         <div className="mt-6 flex flex-col space-y-4 border-t border-stone-100 pt-6">
@@ -341,7 +625,7 @@ export default function Welcome() {
                             </div>
 
                             {/* Mobile Auth */}
-                            {auth.user ? (
+                            {auth?.user ? (
                                 <Link
                                     href={dashboard.url()}
                                     className="flex w-full items-center justify-center rounded-lg bg-stone-100 py-2.5 text-sm font-medium text-stone-800"
@@ -371,7 +655,10 @@ export default function Welcome() {
 
             <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
                 {/* HERO BANNER CONTAINER */}
-                <section className="relative overflow-hidden rounded-[2rem] lg:rounded-[2.5rem] bg-[#FAF7EE] shadow-sm mb-16">
+                <section 
+                    onClick={scrollToShop}
+                    className="relative overflow-hidden rounded-[2rem] lg:rounded-[2.5rem] bg-[#FAF7EE] shadow-sm mb-16 cursor-pointer"
+                >
                     <div className="relative aspect-[16/10] md:aspect-[2.1/1] w-full overflow-hidden">
                         <img
                             src="/images/hero_banner.png"
@@ -390,7 +677,10 @@ export default function Welcome() {
                                 <p className="text-sm sm:text-base md:text-lg text-stone-100/90 max-w-md mb-8 font-normal leading-relaxed">
                                     {t.hero.subtitle}
                                 </p>
-                                <button className="inline-flex items-center justify-center rounded-full bg-[#E06D53] px-6 py-3 text-sm sm:text-base font-semibold text-white shadow-md hover:bg-[#C85B43] hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300 cursor-pointer">
+                                <button 
+                                    onClick={scrollToShop}
+                                    className="inline-flex items-center justify-center rounded-full bg-[#E06D53] px-6 py-3 text-sm sm:text-base font-semibold text-white shadow-md hover:bg-[#C85B43] hover:shadow-lg transform hover:-translate-y-0.5 active:translate-y-0 transition-all duration-300 cursor-pointer"
+                                >
                                     {t.hero.cta}
                                     <ArrowRight className="ml-2 h-4 w-4 stroke-[2]" />
                                 </button>
@@ -401,28 +691,157 @@ export default function Welcome() {
 
                 {/* NEW ARRIVALS GRID SECTION */}
                 <section id="new-arrivals" className="mb-16 scroll-mt-24">
-                    {/* Header */}
-                    <div className="mb-8 flex flex-col md:flex-row md:items-end md:justify-between">
-                        <div>
-                            <h2 className="text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl font-sans">
-                                {t.newArrivals.title}
-                            </h2>
-                            <p className="mt-1.5 text-sm text-stone-500">
-                                {t.newArrivals.subtitle}
-                            </p>
+                    {/* Header and Subcategory selector */}
+                    <div className="mb-8 space-y-6">
+                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-stone-100 pb-4">
+                            <div>
+                                <h2 className="text-2xl font-bold tracking-tight text-stone-900 sm:text-3xl font-sans capitalize">
+                                    {selectedCategory === 'all' && t.newArrivals.title}
+                                    {selectedCategory === 'fashion' && (locale === 'id' ? 'Koleksi Fashion' : 'Fashion Collection')}
+                                    {selectedCategory === 'home-living' && (locale === 'id' ? 'Koleksi Home Living' : 'Home Living Collection')}
+                                    {selectedCategory === 'lifestyle' && (locale === 'id' ? 'Koleksi Gaya Hidup' : 'Lifestyle Collection')}
+                                    {selectedCategory === 'discount' && (locale === 'id' ? 'Produk Diskon Spesial' : 'Special Discount Products')}
+                                </h2>
+                                <p className="mt-1.5 text-sm text-stone-500">
+                                    {selectedCategory === 'all' && t.newArrivals.subtitle}
+                                    {selectedCategory === 'fashion' && (locale === 'id' ? 'Pakaian & aksesoris keluarga pilihan terbaik.' : 'Curated premium fashion and accessories.')}
+                                    {selectedCategory === 'home-living' && (locale === 'id' ? 'Peralatan rumah & ruang tamu estetik.' : 'Elegant bedding, pottery, and living room styling.')}
+                                    {selectedCategory === 'lifestyle' && (locale === 'id' ? 'Hobi, peralatan olahraga, souvenir, dan fotografi.' : 'Hobbies, sports gear, stationery, and photography essentials.')}
+                                    {selectedCategory === 'discount' && (locale === 'id' ? 'Penawaran harga terbaik untuk waktu terbatas.' : 'Time-limited promotional deals for you.')}
+                                </p>
+                            </div>
+
+                            {/* Additional search bar on mobile for convenience */}
+                            <div className="relative w-full md:max-w-xs shrink-0 md:hidden">
+                                <Search className="absolute left-3 top-2.5 h-4.5 w-4.5 text-stone-400" />
+                                <input
+                                    type="text"
+                                    placeholder={locale === 'id' ? 'Cari barang...' : 'Search catalog...'}
+                                    value={searchQuery}
+                                    onChange={(e) => setSearchQuery(e.target.value)}
+                                    className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-stone-200 bg-white focus:outline-hidden"
+                                />
+                            </div>
                         </div>
-                        <a
-                            href="#view-all"
-                            className="group mt-4 inline-flex items-center text-sm font-semibold text-[#E06D53] hover:opacity-85 md:mt-0 transition-opacity"
-                        >
-                            {t.newArrivals.viewAll}
-                            <ArrowRight className="ml-1 h-4 w-4 transform group-hover:translate-x-1 transition-transform stroke-[2.2]" />
-                        </a>
+
+                        {/* Level 2 Subcategory Pills - displayed when Fashion, Home Living, or Lifestyle is selected */}
+                        {(selectedCategory === 'fashion' || selectedCategory === 'home-living' || selectedCategory === 'lifestyle') && (
+                            <div className="space-y-3">
+                                <div className="flex flex-wrap gap-1.5 animate-fadeIn">
+                                    {((() => {
+                                        if (selectedCategory === 'fashion') {
+                                            return ['Laki-laki', 'Perempuan', 'Newborn', 'Child', 'Teenager', 'Adult'];
+                                        } else if (selectedCategory === 'home-living') {
+                                            return ['Living Room', 'Bath Room', 'Bed Room', 'Kitchen', 'Dining Room', 'Furnitur', 'Electronic', 'Storage', 'Dekorasi Rumah', 'Makanan & Minuman', 'Perlengkapan Rumah'];
+                                        } else {
+                                            return ['Koleksi Hobi', 'Alat Olahraga', 'Souvenir dan Perlengkapan', 'Buku dan Alat Tulis', 'Fotografi', 'Komputer & Aksesoris', 'Handphone & Aksesoris', 'Perawatan & Kecantikan', 'Otomotif'];
+                                        }
+                                    })()).map((sub) => (
+                                        <button
+                                            key={sub}
+                                            onClick={() => {
+                                                setSelectedSubcategory(selectedSubcategory === sub ? null : sub);
+                                                setSelectedSubSubcategory(null);
+                                            }}
+                                            className={`px-3 py-1 text-[10px] uppercase tracking-wider font-bold rounded-lg transition-all cursor-pointer ${
+                                                selectedSubcategory === sub
+                                                    ? 'bg-[#E06D53]/10 text-[#E06D53] border border-[#E06D53]/30 shadow-2xs'
+                                                    : 'bg-white border border-stone-200 text-stone-500 hover:border-stone-400'
+                                            }`}
+                                        >
+                                            {sub}
+                                        </button>
+                                    ))}
+                                </div>
+
+                                {/* Dynamic Sub-subcategory selection displayed when any target group subcategory is active */}
+                                {selectedCategory === 'fashion' && selectedSubcategory && (
+                                    <div className="flex flex-wrap gap-1.5 pt-1.5 pl-4 border-l-2 border-[#E06D53]/30 animate-slideDown">
+                                        {[
+                                            'Atasan',
+                                            'Bawahan',
+                                            'Pakaian Khusus',
+                                            'Fashion Muslim',
+                                            'Alas Kaki (Casual)',
+                                            'Alas Kaki (Formal)',
+                                            'Alas Kaki (Sandal)',
+                                            'Alas Kaki (Boots)',
+                                            'Aksesoris'
+                                        ].map((subSub) => (
+                                            <button
+                                                key={subSub}
+                                                onClick={() => setSelectedSubSubcategory(selectedSubSubcategory === subSub ? null : subSub)}
+                                                className={`px-2.5 py-0.5 rounded-lg text-[9px] uppercase tracking-wider font-bold transition-all cursor-pointer ${
+                                                    selectedSubSubcategory === subSub
+                                                        ? 'bg-[#E06D53] text-white shadow-2xs'
+                                                        : 'bg-white border border-stone-200 text-stone-500 hover:border-stone-400'
+                                                }`}
+                                            >
+                                                {subSub}
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
                     </div>
+
+                    {/* Active Vouchers Promotion */}
+                    {vouchers && vouchers.length > 0 && (
+                        <div id="vouchers-section" className="mb-10 animate-fadeIn bg-gradient-to-br from-[#E06D53]/[0.02] via-[#FAF9F6] to-white border border-[#E06D53]/15 rounded-2xl p-5 shadow-2xs">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Gift className="size-5 text-[#E06D53] shrink-0" />
+                                <h3 className="text-xs font-bold text-stone-850 uppercase tracking-widest">
+                                    {locale === 'id' ? 'Voucher Belanja Toko' : 'Store Vouchers & Coupons'}
+                                </h3>
+                            </div>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                {vouchers.map((voucher: any) => (
+                                    <div 
+                                        key={voucher.id}
+                                        className="relative flex items-center bg-white border border-stone-200/80 rounded-xl overflow-hidden shadow-3xs hover:shadow-2xs transition-all duration-300 h-[88px]"
+                                    >
+                                        {/* Left part: Discount Badge */}
+                                        <div className="bg-[#E06D53] text-white py-4 px-3 flex flex-col items-center justify-center min-w-[90px] text-center shrink-0 h-full relative">
+                                            <span className="text-[8px] font-bold uppercase tracking-wider opacity-90">Potongan</span>
+                                            <span className="text-xs font-black tracking-tight">{formatPrice(voucher.discount_amount)}</span>
+                                            {/* Shopee-style dashed line divider on the right */}
+                                            <div className="absolute right-0 top-0 bottom-0 w-0 border-r border-dashed border-white/40 h-full"></div>
+                                        </div>
+                                        {/* Right part: Code and Copy Action */}
+                                        <div className="p-3 flex-1 flex flex-col justify-between min-w-0 text-left h-full">
+                                            <div className="space-y-0.5">
+                                                <div className="flex items-center gap-1.5">
+                                                    <span className="text-[9px] font-black text-stone-850 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded select-all font-mono tracking-wider">
+                                                        {voucher.code}
+                                                    </span>
+                                                </div>
+                                                <p className="text-[9px] text-stone-400 font-medium truncate mt-1">
+                                                    {locale === 'id' 
+                                                        ? `Min: ${formatPrice(voucher.min_spend)}` 
+                                                        : `Min Spend: ${formatPrice(voucher.min_spend)}`
+                                                    }
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => {
+                                                    navigator.clipboard.writeText(voucher.code);
+                                                    toast.success(locale === 'id' ? 'Kode voucher berhasil disalin!' : 'Voucher code copied to clipboard!');
+                                                }}
+                                                className="mt-2 text-center bg-[#E06D53]/10 hover:bg-[#E06D53] hover:text-white text-[#E06D53] text-[9px] font-bold py-1 px-2.5 rounded-lg transition-all duration-300 uppercase tracking-widest cursor-pointer w-fit"
+                                            >
+                                                {locale === 'id' ? 'Salin' : 'Copy'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
 
                     {/* Products Grid (4 items) */}
                     <div className="grid grid-cols-1 gap-y-10 gap-x-6 sm:grid-cols-2 lg:grid-cols-4 xl:gap-x-8">
-                        {products.map((product) => (
+                        {filteredProducts.map((product) => (
                             <div
                                 key={product.id}
                                 className="group relative flex flex-col overflow-hidden rounded-2xl border border-stone-200/40 bg-white shadow-sm hover:shadow-md hover:-translate-y-1 transition-all duration-300"
@@ -431,14 +850,15 @@ export default function Welcome() {
                                     {/* Image Container */}
                                     <div className="relative aspect-square w-full overflow-hidden bg-stone-100">
                                         <img
-                                            src={product.image}
-                                            alt={locale === 'id' ? product.title.id : product.title.en}
+                                            src={product.image && (product.image.startsWith('/') || product.image.startsWith('http')) ? product.image : `/storage/${product.image}`}
+                                            alt={locale === 'id' ? product.name_id : product.name_en}
                                             className="h-full w-full object-cover object-center group-hover:scale-105 transition-transform duration-500 ease-out"
+                                            loading="lazy"
                                         />
                                         {/* Category tag */}
-                                        {product.tag && (
+                                        {product.category && (
                                             <span className="absolute top-3 left-3 rounded-full bg-[#FAF7EE] border border-stone-200/50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-stone-700 shadow-sm">
-                                                {product.tag}
+                                                {product.category.name}
                                             </span>
                                         )}
                                     </div>
@@ -446,10 +866,10 @@ export default function Welcome() {
                                     {/* Body info */}
                                     <div className="flex flex-1 flex-col px-5 pt-5 pb-1">
                                         <h3 className="text-sm font-semibold text-stone-800 group-hover:text-[#E06D53] transition-colors line-clamp-1">
-                                            {locale === 'id' ? product.title.id : product.title.en}
+                                            {locale === 'id' ? product.name_id : product.name_en}
                                         </h3>
                                         <p className="mt-1 text-base font-bold text-stone-900">
-                                            {product.price}
+                                            {formatPrice(product.price)}
                                         </p>
                                     </div>
                                 </Link>
@@ -460,7 +880,7 @@ export default function Welcome() {
                                         onClick={(e) => {
                                             e.preventDefault();
                                             e.stopPropagation();
-                                            handleAddToCart(product.id);
+                                            handleAddToCart(product.id, product.slug);
                                         }}
                                         className={`w-full flex items-center justify-center rounded-xl py-2.5 text-xs font-semibold shadow-sm transition-all duration-300 cursor-pointer ${
                                             addedToCartId === product.id
@@ -556,6 +976,40 @@ export default function Welcome() {
                     </div>
                 </div>
             </footer>
+
+            {/* Dynamic 5-Second Recommendation Popup */}
+            {showRecommendation && recommendedProduct && (
+                <div className="fixed bottom-6 right-6 z-50 max-w-sm rounded-2xl bg-white border border-stone-200/50 shadow-2xl p-4 flex gap-4 animate-slideInRight">
+                    {/* Thumbnail */}
+                    <div className="size-16 rounded-xl bg-stone-100 overflow-hidden border border-stone-150 shrink-0">
+                        <img src={recommendedProduct.image} alt="" className="size-full object-cover" />
+                    </div>
+                    {/* Content */}
+                    <div className="flex-1 space-y-1.5">
+                        <div className="flex justify-between items-start">
+                            <span className="text-[9px] font-black text-[#E06D53] tracking-widest uppercase">
+                                {locale === 'id' ? 'Direkomendasikan untuk Anda' : 'Recommended for you'}
+                            </span>
+                            <button onClick={() => setShowRecommendation(false)} className="text-stone-400 hover:text-stone-600 transition-colors cursor-pointer">
+                                <X className="size-3.5" />
+                            </button>
+                        </div>
+                        <h4 className="text-xs font-bold text-stone-850 line-clamp-1">
+                            {locale === 'id' ? recommendedProduct.name_id : recommendedProduct.name_en}
+                        </h4>
+                        <div className="flex items-center justify-between gap-3 pt-1">
+                            <span className="text-xs font-bold text-stone-900">{formatPrice(recommendedProduct.price)}</span>
+                            <button 
+                                onClick={handleAddRecommendedToCart}
+                                className="bg-[#E06D53] hover:bg-[#C85B43] text-white text-[10px] font-bold px-3 py-1.5 rounded-lg shadow-md transition-all cursor-pointer uppercase tracking-wider"
+                            >
+                                {locale === 'id' ? '+ Keranjang' : '+ Add to Cart'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+            <CallCenterDialog open={isSupportOpen} onOpenChange={setIsSupportOpen} />
         </div>
     );
 }
